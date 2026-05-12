@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>JobBot — DevOps Auto Apply Dashboard</title>
+<link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body>
+<header>
+  <h1>&#x1F916; DevOps Job Bot</h1>
+  <p>Sanagapalli Sri Ram Praneeth &nbsp;|&nbsp; praneethssr.2002@gmail.com</p>
+</header>
+
+<section class="stats" id="stats-grid">
+  <div class="card"><h3>Jobs Scanned</h3><p id="total_jobs">—</p></div>
+  <div class="card"><h3>Applied</h3><p id="jobs_applied">—</p></div>
+  <div class="card green"><h3>Interviews</h3><p id="interview_calls">—</p></div>
+  <div class="card red"><h3>Rejected</h3><p id="rejected">—</p></div>
+  <div class="card"><h3>Pending</h3><p id="pending">—</p></div>
+  <div class="card"><h3>Avg ATS</h3><p id="avg_ats">—</p></div>
+  <div class="card"><h3>Recruiters</h3><p id="recruiters_contacted">—</p></div>
+  <div class="card green"><h3>Replies</h3><p id="recruiter_replies">—</p></div>
+</section>
+
+<section class="controls">
+  <button onclick="triggerSearch()">&#x1F50D; Start Job Search</button>
+  <button onclick="triggerApply()">&#x26A1; Auto Apply</button>
+  <button onclick="triggerOutreach()">&#x1F4E8; Recruiter Outreach</button>
+  <button onclick="generateReport()">&#x1F4CA; Generate Report</button>
+  <span id="status-msg"></span>
+</section>
+
+<section class="upload-section">
+  <h2>Upload Resume (PDF)</h2>
+  <input type="file" id="resume-file" accept=".pdf"/>
+  <button onclick="uploadResume()">Upload</button>
+  <p id="upload-result"></p>
+</section>
+
+<section class="ats-section">
+  <h2>ATS Score Checker</h2>
+  <textarea id="jd-text" placeholder="Paste job description here..." rows="6"></textarea>
+  <button onclick="checkATS()">Check ATS Score</button>
+  <p id="ats-result"></p>
+</section>
+
+<section class="jobs-table">
+  <h2>Recent Jobs</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th><th>Title</th><th>Company</th>
+        <th>Location</th><th>ATS</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="jobs-tbody"></tbody>
+  </table>
+</section>
+
+<section class="outreach-table">
+  <h2>Recruiter Outreach</h2>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Company</th><th>Connected</th><th>Replied</th><th>Action</th></tr>
+    </thead>
+    <tbody id="outreach-tbody"></tbody>
+  </table>
+</section>
+
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>
