@@ -53,6 +53,10 @@ def start_scheduler(app) -> BackgroundScheduler | None:
         log.error("start_scheduler: app is None — scheduler not started")
         return None
 
+    if _scheduler and _scheduler.running:
+        log.warning("Scheduler already running — skipping start")
+        return _scheduler
+
     morning_h, morning_m = _parse_time(Config.MORNING_SCAN_TIME, _DEFAULT_MORNING)
     report_h,  report_m  = _parse_time(Config.REPORT_TIME, _DEFAULT_REPORT)
 
