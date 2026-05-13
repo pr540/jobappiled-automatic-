@@ -1,14 +1,18 @@
 """
 First-time setup: Opens each platform in a real Chrome browser window.
-You log in with Google ONCE — sessions are saved permanently.
+You log in with Google ONCE -- sessions are saved permanently.
 Run this ONCE before scheduling daily automation.
 """
 import os
 import sys
 import time
 
-# Force non-headless for setup
+# Fix Windows console encoding
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# Force visible browser (not headless) for setup
 os.environ["HEADLESS"] = "false"
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -18,8 +22,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-PROFILE_BASE = os.path.join(os.path.dirname(__file__), "data", "browser_profiles")
+PROFILE_BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "browser_profiles")
 CANDIDATE_EMAIL = os.getenv("CANDIDATE_EMAIL", "praneethssr.2002@gmail.com")
+
+
+def p(msg):
+    """Print with flush so output appears immediately."""
+    print(msg, flush=True)
 
 
 def get_driver(profile_name: str) -> uc.Chrome:
@@ -27,236 +36,360 @@ def get_driver(profile_name: str) -> uc.Chrome:
     os.makedirs(profile_dir, exist_ok=True)
     options = uc.ChromeOptions()
     options.add_argument(f"--user-data-dir={profile_dir}")
-    options.add_argument("--window-size=1200,800")
+    options.add_argument("--window-size=1280,900")
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--lang=en-US")
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
     driver = uc.Chrome(options=options, version_main=None)
     driver.execute_script("Object.defineProperty(navigator,'webdriver',{get:()=>undefined})")
     return driver
 
 
-def wait_for_login(driver, success_url_part: str, platform: str, timeout: int = 120):
-    """Wait until the user finishes Google login."""
-    print(f"\n  [ACTION REQUIRED] Complete Google login for {platform} in the browser window.")
-    print(f"  Waiting up to {timeout}s for you to finish...")
+def wait_for_login(driver, check_fn, platform: str, timeout: int = 300):
+    """Poll until check_fn returns True or timeout."""
+    p(f"\n  [ACTION REQUIRED] Log in with Google in the {platform} browser window.")
+    p(f"  Waiting up to {timeout//60} minutes for you to finish...")
     start = time.time()
     while time.time() - start < timeout:
         try:
-            if success_url_part in driver.current_url:
-                print(f"  ✓ {platform} login detected!")
+            if check_fn(driver):
+                p(f"  [OK] {platform} login confirmed!")
+                time.sleep(2)
                 return True
         except Exception:
             pass
-        time.sleep(2)
-    print(f"  ✗ Timeout waiting for {platform} login.")
+        time.sleep(3)
+    p(f"  [TIMEOUT] {platform} login not detected. Session may still be saved if you logged in.")
     return False
 
 
+# ─────────────────────────────────────────────
+# NAUKRI
+# ─────────────────────────────────────────────
+def naukri_logged_in(driver) -> bool:
+    try:
+        driver.find_element(By.CSS_SELECTOR,
+            ".nI-gNb-drawer__icon, .nI-gNb-info, [data-ga-track='user_icon']")
+        return True
+    except NoSuchElementException:
+        url = driver.current_url
+        return "naukri.com" in url and "login" not in url and "nlogin" not in url
+
+
 def setup_naukri():
-    print("\n" + "="*60)
-    print("STEP 1/4 — NAUKRI LOGIN")
-    print("="*60)
+    p("\n" + "="*60)
+    p("STEP 1/4  --  NAUKRI.COM")
+    p("="*60)
     driver = get_driver("naukri")
     try:
+        driver.get("https://www.naukri.com")
+        time.sleep(4)
+
+        if naukri_logged_in(driver):
+            p("  [OK] Already logged in to Naukri!")
+            return True
+
         driver.get("https://www.naukri.com/nlogin/login")
         time.sleep(3)
 
-        # Check already logged in
-        if "mnjuser" in driver.current_url or "myapps" in driver.current_url:
-            print("  ✓ Already logged in to Naukri!")
-            time.sleep(2)
-            return True
-
-        # Click Google login button
-        try:
-            google_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH,
-                    "//a[contains(@href,'google')] | //button[contains(.,'Google')] | //span[contains(.,'Google')]/.."
-                ))
-            )
-            google_btn.click()
-            time.sleep(3)
-        except TimeoutException:
-            print("  Google button not found — try logging in manually in the browser.")
-
-        # If Google popup opened
-        windows = driver.window_handles
-        if len(windows) > 1:
-            driver.switch_to.window(windows[-1])
-            time.sleep(2)
-            # Pre-fill email
+        # Try Google button
+        clicked = False
+        for xpath in [
+            "//a[contains(@href,'google')]",
+            "//button[contains(.,'Google')]",
+            "//span[contains(.,'Google')]/..",
+        ]:
             try:
-                email_field = driver.find_element(By.CSS_SELECTOR, "input[type='email']")
-                email_field.clear()
+                btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, xpath)))
+                btn.click()
+                time.sleep(3)
+                clicked = True
+                p("  Google button clicked on Naukri.")
+                break
+            except (TimeoutException, NoSuchElementException):
+                continue
+
+        if not clicked:
+            p("  Could not find Google button -- log in manually in the browser window.")
+
+        # Handle Google OAuth popup
+        time.sleep(2)
+        wins = driver.window_handles
+        if len(wins) > 1:
+            driver.switch_to.window(wins[-1])
+            time.sleep(2)
+            try:
+                ef = driver.find_element(By.CSS_SELECTOR, "input[type='email']")
                 for c in CANDIDATE_EMAIL:
-                    email_field.send_keys(c)
-                    time.sleep(0.05)
+                    ef.send_keys(c)
+                    time.sleep(0.04)
                 driver.find_element(By.ID, "identifierNext").click()
                 time.sleep(2)
-                print(f"  Email pre-filled: {CANDIDATE_EMAIL}")
-                print("  Enter your password in the browser window...")
+                p(f"  Email entered: {CANDIDATE_EMAIL}")
+                p("  --> Enter your Google password in the popup, then press Next.")
             except NoSuchElementException:
-                print("  Fill in your Google credentials in the browser window.")
-            driver.switch_to.window(windows[0])
+                p("  --> Select your Google account or enter credentials in the popup.")
+            driver.switch_to.window(wins[0])
 
-        return wait_for_login(driver, "naukri.com", "Naukri", timeout=180)
+        return wait_for_login(driver, naukri_logged_in, "Naukri", timeout=300)
     finally:
-        print("  Browser profile saved. Closing Naukri window.")
+        p("  Naukri browser profile saved.")
         try:
             driver.quit()
         except Exception:
             pass
+
+
+# ─────────────────────────────────────────────
+# LINKEDIN
+# ─────────────────────────────────────────────
+def linkedin_logged_in(driver) -> bool:
+    try:
+        driver.find_element(By.CSS_SELECTOR,
+            ".global-nav__me-photo, nav.global-nav, .feed-identity-module")
+        return True
+    except NoSuchElementException:
+        url = driver.current_url
+        return "/feed" in url or "/mynetwork" in url or "/in/" in url
 
 
 def setup_linkedin():
-    print("\n" + "="*60)
-    print("STEP 2/4 — LINKEDIN LOGIN")
-    print("="*60)
+    p("\n" + "="*60)
+    p("STEP 2/4  --  LINKEDIN")
+    p("="*60)
     driver = get_driver("linkedin")
     try:
         driver.get("https://www.linkedin.com/feed/")
-        time.sleep(3)
+        time.sleep(4)
 
-        if "feed" in driver.current_url or "mynetwork" in driver.current_url:
-            print("  ✓ Already logged in to LinkedIn!")
-            time.sleep(2)
+        if linkedin_logged_in(driver):
+            p("  [OK] Already logged in to LinkedIn!")
             return True
 
         driver.get("https://www.linkedin.com/login")
-        time.sleep(2)
+        time.sleep(3)
 
-        # Try to pre-fill email
         try:
-            email_field = WebDriverWait(driver, 8).until(
-                EC.presence_of_element_located((By.ID, "username"))
-            )
-            email_field.clear()
+            ef = WebDriverWait(driver, 8).until(
+                EC.presence_of_element_located((By.ID, "username")))
+            ef.clear()
             for c in CANDIDATE_EMAIL:
-                email_field.send_keys(c)
-                time.sleep(0.05)
-            print(f"  Email pre-filled: {CANDIDATE_EMAIL}")
-            print("  Enter your LinkedIn password in the browser, then click Sign in.")
+                ef.send_keys(c)
+                time.sleep(0.04)
+            p(f"  Email pre-filled: {CANDIDATE_EMAIL}")
+            p("  --> Enter your LinkedIn password in the browser window, then click Sign in.")
         except TimeoutException:
-            print("  Fill in your LinkedIn credentials in the browser window.")
+            p("  --> Enter your LinkedIn credentials in the browser window.")
 
-        return wait_for_login(driver, "/feed", "LinkedIn", timeout=180)
+        return wait_for_login(driver, linkedin_logged_in, "LinkedIn", timeout=300)
     finally:
-        print("  Browser profile saved. Closing LinkedIn window.")
+        p("  LinkedIn browser profile saved.")
         try:
             driver.quit()
         except Exception:
             pass
+
+
+# ─────────────────────────────────────────────
+# INDEED
+# ─────────────────────────────────────────────
+def indeed_logged_in(driver) -> bool:
+    try:
+        driver.find_element(By.CSS_SELECTOR,
+            ".gnav-LoggedInUser, #gnav-user, .icl-Avatar, [data-testid='gnav-user-container']")
+        return True
+    except NoSuchElementException:
+        url = driver.current_url
+        return "indeed.com" in url and "login" not in url and "account" not in url and "secure" not in url
 
 
 def setup_indeed():
-    print("\n" + "="*60)
-    print("STEP 3/4 — INDEED LOGIN")
-    print("="*60)
+    p("\n" + "="*60)
+    p("STEP 3/4  --  INDEED")
+    p("="*60)
     driver = get_driver("indeed")
     try:
+        driver.get("https://in.indeed.com/jobs?q=devops")
+        time.sleep(4)
+
+        if indeed_logged_in(driver):
+            p("  [OK] Already logged in to Indeed!")
+            return True
+
         driver.get("https://secure.indeed.com/account/login")
         time.sleep(3)
 
-        # Check already logged in
-        if "indeed.com/myjobs" in driver.current_url or "indeed.com/jobs" in driver.current_url:
-            print("  ✓ Already logged in to Indeed!")
+        clicked = False
+        for xpath in [
+            "//*[@data-tn-element='GoogleSignIn']",
+            "//a[contains(@href,'google')]",
+            "//button[contains(.,'Google')]",
+            "//div[contains(.,'Continue with Google')]",
+        ]:
+            try:
+                btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, xpath)))
+                btn.click()
+                time.sleep(3)
+                clicked = True
+                p("  Google button clicked on Indeed.")
+                break
+            except (TimeoutException, NoSuchElementException):
+                continue
+
+        if not clicked:
+            p("  --> Click 'Continue with Google' manually in the Indeed browser window.")
+
+        # Handle popup
+        time.sleep(2)
+        wins = driver.window_handles
+        if len(wins) > 1:
+            driver.switch_to.window(wins[-1])
             time.sleep(2)
-            return True
+            try:
+                divs = driver.find_elements(By.CSS_SELECTOR, "[data-identifier]")
+                for d in divs:
+                    if CANDIDATE_EMAIL.lower() in (d.get_attribute("data-identifier") or "").lower():
+                        d.click()
+                        p(f"  Google account selected: {CANDIDATE_EMAIL}")
+                        break
+            except Exception:
+                pass
+            driver.switch_to.window(wins[0])
 
-        # Click Google sign-in
-        try:
-            google_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH,
-                    "//a[contains(@href,'google')] | //button[contains(.,'Google')] | //*[@data-tn-element='GoogleSignIn']"
-                ))
-            )
-            google_btn.click()
-            time.sleep(3)
-            print("  Google sign-in clicked.")
-        except TimeoutException:
-            print("  Google button not auto-found. Click 'Continue with Google' manually in the browser.")
-
-        return wait_for_login(driver, "indeed.com", "Indeed", timeout=180)
+        return wait_for_login(driver, indeed_logged_in, "Indeed", timeout=300)
     finally:
-        print("  Browser profile saved. Closing Indeed window.")
+        p("  Indeed browser profile saved.")
         try:
             driver.quit()
         except Exception:
             pass
+
+
+# ─────────────────────────────────────────────
+# GLASSDOOR
+# ─────────────────────────────────────────────
+def glassdoor_logged_in(driver) -> bool:
+    try:
+        driver.find_element(By.CSS_SELECTOR,
+            ".SVGInline.avatar, [data-test='user-menu'], .userMenu, .dropdown-avatar")
+        return True
+    except NoSuchElementException:
+        url = driver.current_url
+        return "glassdoor" in url and "login" not in url and "signin" not in url and "profile" not in url
+
+
+def _close_modal(driver):
+    for sel in ["[alt='Close']", "button.modal_closeIcon", "[data-test='close']", "button[class*='close']"]:
+        try:
+            driver.find_element(By.CSS_SELECTOR, sel).click()
+            time.sleep(0.5)
+            return
+        except NoSuchElementException:
+            continue
 
 
 def setup_glassdoor():
-    print("\n" + "="*60)
-    print("STEP 4/4 — GLASSDOOR LOGIN")
-    print("="*60)
+    p("\n" + "="*60)
+    p("STEP 4/4  --  GLASSDOOR")
+    p("="*60)
     driver = get_driver("glassdoor")
     try:
-        driver.get("https://www.glassdoor.co.in/profile/login_input.htm")
-        time.sleep(3)
+        driver.get("https://www.glassdoor.co.in/Job/index.htm")
+        time.sleep(4)
+        _close_modal(driver)
 
-        # Check already logged in
-        if "glassdoor.co.in/member/" in driver.current_url:
-            print("  ✓ Already logged in to Glassdoor!")
-            time.sleep(2)
+        if glassdoor_logged_in(driver):
+            p("  [OK] Already logged in to Glassdoor!")
             return True
 
-        # Click Google sign-in
-        try:
-            google_btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH,
-                    "//a[contains(@href,'google')] | //button[contains(.,'Google')]"
-                ))
-            )
-            google_btn.click()
-            time.sleep(3)
-            print("  Google sign-in clicked.")
-        except TimeoutException:
-            print("  Google button not auto-found. Click 'Continue with Google' manually.")
+        driver.get("https://www.glassdoor.co.in/profile/login_input.htm")
+        time.sleep(3)
+        _close_modal(driver)
 
-        return wait_for_login(driver, "glassdoor.co.in", "Glassdoor", timeout=180)
+        clicked = False
+        for xpath in [
+            "//a[contains(@href,'google')]",
+            "//button[contains(.,'Google')]",
+            "//*[contains(@class,'google')]//button",
+        ]:
+            try:
+                btn = WebDriverWait(driver, 5).until(
+                    EC.element_to_be_clickable((By.XPATH, xpath)))
+                btn.click()
+                time.sleep(3)
+                clicked = True
+                p("  Google button clicked on Glassdoor.")
+                break
+            except (TimeoutException, NoSuchElementException):
+                continue
+
+        if not clicked:
+            p("  --> Click 'Continue with Google' manually in the Glassdoor browser window.")
+
+        # Handle popup
+        time.sleep(2)
+        wins = driver.window_handles
+        if len(wins) > 1:
+            driver.switch_to.window(wins[-1])
+            time.sleep(2)
+            try:
+                divs = driver.find_elements(By.CSS_SELECTOR, "[data-identifier]")
+                for d in divs:
+                    if CANDIDATE_EMAIL.lower() in (d.get_attribute("data-identifier") or "").lower():
+                        d.click()
+                        p(f"  Google account selected: {CANDIDATE_EMAIL}")
+                        break
+            except Exception:
+                pass
+            driver.switch_to.window(wins[0])
+
+        return wait_for_login(driver, glassdoor_logged_in, "Glassdoor", timeout=300)
     finally:
-        print("  Browser profile saved. Closing Glassdoor window.")
+        p("  Glassdoor browser profile saved.")
         try:
             driver.quit()
         except Exception:
             pass
 
 
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
 def main():
-    print("\n" + "="*60)
-    print("  JOBBOT — FIRST-TIME LOGIN SETUP")
-    print("  This will open each platform in a browser window.")
-    print("  Log in with your Google account when prompted.")
-    print("  Sessions are saved — you only need to do this ONCE.")
-    print("="*60)
-    print(f"\n  Google account to use: {CANDIDATE_EMAIL}\n")
-
-    input("  Press ENTER to begin setup...")
+    p("\n" + "="*60)
+    p("  JOBBOT -- PLATFORM LOGIN SETUP")
+    p("  A Chrome window will open for each platform.")
+    p("  Sign in with Google when the browser opens.")
+    p("  Your session will be saved permanently.")
+    p("="*60)
+    p(f"\n  Google account: {CANDIDATE_EMAIL}\n")
 
     results = {}
-
     results["naukri"]    = setup_naukri()
     results["linkedin"]  = setup_linkedin()
     results["indeed"]    = setup_indeed()
     results["glassdoor"] = setup_glassdoor()
 
-    print("\n" + "="*60)
-    print("  SETUP COMPLETE — Login Results:")
-    print("="*60)
+    p("\n" + "="*60)
+    p("  SETUP RESULTS")
+    p("="*60)
     for platform, ok in results.items():
-        status = "✓ Ready" if ok else "✗ Failed (re-run setup)"
-        print(f"  {platform.capitalize():<12} {status}")
+        status = "[OK]   Ready" if ok else "[FAIL] Re-run setup"
+        p(f"  {platform.capitalize():<12}  {status}")
 
-    all_ok = all(results.values())
-    print()
-    if all_ok:
-        print("  All platforms authenticated!")
-        print("  You can now run:  python run_daily.py")
-        print("  Or schedule it:   setup_scheduler.bat")
+    p("")
+    failed = [pf for pf, ok in results.items() if not ok]
+    if not failed:
+        p("  All 4 platforms authenticated!")
+        p("  Run daily automation:  python run_daily.py")
+        p("  Schedule daily task:   setup_scheduler.bat (as Admin)")
     else:
-        failed = [p for p, ok in results.items() if not ok]
-        print(f"  Re-run setup for: {', '.join(failed)}")
-    print("="*60)
+        p(f"  Failed: {', '.join(failed)}")
+        p("  Re-run this script to retry failed platforms.")
+    p("="*60)
 
 
 if __name__ == "__main__":

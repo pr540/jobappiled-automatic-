@@ -2,8 +2,8 @@
 import os
 import time
 import random
+import subprocess
 import undetected_chromedriver as uc
-from selenium.webdriver.chrome.options import Options
 from core.config import Config
 from core.logger import get_logger
 
@@ -14,40 +14,81 @@ def human_delay(min_s: float = 1.0, max_s: float = 3.0):
     time.sleep(random.uniform(min_s, max_s))
 
 
+def _get_chrome_version() -> int | None:
+    """Detect installed Chrome major version."""
+    paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        r"C:\Users\%s\AppData\Local\Google\Chrome\Application\chrome.exe" % os.getenv("USERNAME", ""),
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            try:
+                out = subprocess.check_output([p, "--version"], stderr=subprocess.DEVNULL, timeout=5)
+                version_str = out.decode().strip().split()[-1]
+                return int(version_str.split(".")[0])
+            except Exception:
+                pass
+    return None
+
+
 def get_driver(profile_name: str = "default") -> uc.Chrome:
-    profile_dir = os.path.join(Config.BROWSER_PROFILE_DIR, profile_name)
+    profile_dir = os.path.abspath(os.path.join(Config.BROWSER_PROFILE_DIR, profile_name))
     os.makedirs(profile_dir, exist_ok=True)
 
     options = uc.ChromeOptions()
+
+    # Headless mode — use legacy flag for compatibility
     if Config.HEADLESS:
-        options.add_argument("--headless=new")
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+
+    # Stability flags
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-popup-blocking")
     options.add_argument(f"--user-data-dir={profile_dir}")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--lang=en-US")
+    options.add_argument("--window-size=1366,768")
+    options.add_argument("--lang=en-US,en")
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
+
+    # Detect Chrome version to avoid mismatch
+    chrome_ver = _get_chrome_version()
+    log.info(f"Chrome version detected: {chrome_ver}")
 
     try:
-        driver = uc.Chrome(options=options, version_main=None)
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        log.info("Browser started", extra={"profile": profile_name})
+        driver = uc.Chrome(
+            options=options,
+            version_main=chrome_ver,
+            use_subprocess=True,
+        )
+        driver.execute_script(
+            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined})"
+        )
+        driver.set_page_load_timeout(30)
+        log.info("Browser started", extra={"profile": profile_name, "headless": Config.HEADLESS})
         return driver
     except Exception as e:
-        log.error("Failed to start browser", extra={"error": str(e)})
+        log.error("Browser start failed", extra={"error": str(e)})
         raise
 
 
 def safe_click(driver, element):
-    """Scroll to element then click with human delay."""
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
-    human_delay(0.3, 0.8)
-    element.click()
-    human_delay(0.5, 1.5)
+    human_delay(0.3, 0.7)
+    try:
+        element.click()
+    except Exception:
+        driver.execute_script("arguments[0].click();", element)
+    human_delay(0.5, 1.2)
 
 
 def human_type(element, text: str):
-    """Type text character by character like a human."""
     for char in text:
         element.send_keys(char)
-        time.sleep(random.uniform(0.04, 0.12))
+        time.sleep(random.uniform(0.04, 0.10))
