@@ -6,7 +6,7 @@
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "50mb",
-        "installCommand": "pip install -r requirements-vercel.txt"
+        "requirements": "requirements-vercel.txt"
       }
     }
   ],

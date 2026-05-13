@@ -4,7 +4,6 @@ import time
 import random
 import platform
 import subprocess
-import undetected_chromedriver as uc
 from core.config import Config
 from core.logger import get_logger
 
@@ -42,26 +41,25 @@ def _get_chrome_version() -> int | None:
     return None
 
 
-def get_driver(profile_name: str = "default") -> uc.Chrome:
+def get_driver(profile_name: str = "default"):
+    """Return an undetected Chrome driver. Lazy-imports uc so Vercel doesn't choke."""
+    import undetected_chromedriver as uc  # noqa: PLC0415 — intentional lazy import
+
     profile_dir = os.path.abspath(os.path.join(Config.BROWSER_PROFILE_DIR, profile_name))
     os.makedirs(profile_dir, exist_ok=True)
 
     options = uc.ChromeOptions()
 
     if Config.HEADLESS:
-        # Linux CI: use --headless=new; Windows: legacy --headless
         options.add_argument("--headless=new" if IS_LINUX else "--headless")
         options.add_argument("--disable-gpu")
 
-    # Required for Linux/Docker/CI
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-
     if IS_LINUX:
         options.add_argument("--shm-size=2gb")
         options.add_argument("--disable-software-rasterizer")
 
-    # Anti-bot and stability flags
     options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("--disable-extensions")
     options.add_argument("--disable-infobars")

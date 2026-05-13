@@ -1,10 +1,15 @@
 """Indeed India — Google login, job search, Indeed Apply automation."""
 import time
 import random
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+
+try:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException, NoSuchElementException
+    _SELENIUM_OK = True
+except ImportError:
+    _SELENIUM_OK = False  # Vercel — browser methods won't be called
 
 from core.browser import get_driver, human_delay, safe_click
 from core.config import Config
@@ -186,13 +191,14 @@ class IndeedPlatform(BasePlatform):
             except TimeoutException:
                 continue
 
-        # External apply — open company site (count as applied)
+        # External apply — navigate directly (avoids unclosed tab accumulation)
         try:
             ext = self.driver.find_element(By.XPATH,
                 "//a[contains(.,'Apply on company site')] | //a[contains(.,'Apply now')]")
             href = ext.get_attribute("href") or ""
             if href:
-                self.driver.execute_script(f"window.open('{href}', '_blank');")
+                self.driver.get(href)
+                human_delay(1, 2)
                 log.info("Indeed: external apply opened", extra={"url": job.job_url})
                 return True
         except NoSuchElementException:

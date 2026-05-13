@@ -1,10 +1,15 @@
 """Glassdoor India — Google login, job search, apply automation."""
 import time
 import random
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+
+try:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException, NoSuchElementException
+    _SELENIUM_OK = True
+except ImportError:
+    _SELENIUM_OK = False  # Vercel — browser methods won't be called
 
 from core.browser import get_driver, human_delay, safe_click
 from core.config import Config

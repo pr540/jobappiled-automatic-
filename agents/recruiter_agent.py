@@ -2,8 +2,13 @@
 import time
 import random
 from datetime import datetime
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+
+try:
+    from selenium.webdriver.common.by import By
+    from selenium.common.exceptions import NoSuchElementException
+    _SELENIUM_OK = True
+except ImportError:
+    _SELENIUM_OK = False  # Vercel — browser methods won't be called
 
 from core.config import Config
 from core.database import db, Job, RecruiterOutreach
