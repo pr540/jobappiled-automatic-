@@ -79,10 +79,11 @@ def _register_blueprints(app: Flask):
         log.error(f"reports blueprint failed: {e}")
 
 
-if __name__ == "__main__":
-    app = create_app()
+# Module-level app instance — required by Vercel and gunicorn WSGI
+app = create_app()
 
-    # Start scheduler only when running directly (not on Vercel/gunicorn)
+if __name__ == "__main__":
+    # Start scheduler only when running locally (not on Vercel/gunicorn)
     try:
         from scheduler.task_runner import start_scheduler
         start_scheduler(app)
