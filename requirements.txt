@@ -12,6 +12,7 @@ pypdf2==3.0.1
 schedule==1.2.2
 apscheduler==3.10.4
 webdriver-manager==4.0.1
+setuptools
 undetected-chromedriver==3.5.5
 fake-useragent==1.5.1
 python-json-logger==2.0.7

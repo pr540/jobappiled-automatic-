@@ -99,7 +99,68 @@ textarea {
 }
 
 input[type='file'] { color: var(--text); margin-right: 12px; }
-#upload-result, #ats-result { margin-top: 10px; font-size: 0.9rem; color: var(--green); }
+#upload-result { margin-top: 10px; font-size: 0.9rem; }
+
+.upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+
+.hint { color: var(--muted); font-size: 0.85rem; margin-bottom: 10px; }
+
+.ats-controls { display: flex; gap: 10px; margin-bottom: 16px; }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: opacity 0.15s;
+}
+.btn-secondary:hover { opacity: 0.8; }
+
+#ats-result-box { margin-top: 4px; }
+
+#ats-score-bar-wrap {
+  background: var(--border);
+  border-radius: 8px;
+  height: 12px;
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+#ats-score-bar {
+  height: 100%;
+  border-radius: 8px;
+  width: 0%;
+  transition: width 0.6s ease, background 0.4s;
+}
+
+#ats-score-label { margin-bottom: 16px; font-size: 0.95rem; }
+
+.skill-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.label-sm { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; color: var(--muted); }
+.label-green { color: var(--green) !important; }
+.label-red { color: var(--red) !important; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.chip-green { background: #1a3d2b; color: var(--green); border: 1px solid var(--green); }
+.chip-red   { background: #3d1a1a; color: var(--red);   border: 1px solid var(--red); }
+.chip-blue  { background: #1a2d3d; color: var(--accent); border: 1px solid var(--accent); }
+
+#resume-skills-box { margin-top: 12px; }
 
 .jobs-table, .outreach-table {
   background: var(--surface);

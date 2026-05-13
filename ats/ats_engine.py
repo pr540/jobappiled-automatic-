@@ -18,26 +18,50 @@ def _get_client() -> OpenAI:
 
 
 def calculate_ats_score(job_description: str, resume_text: str) -> float:
-    """Keyword-based ATS score (0–100) with optional LLM boost."""
+    """Keyword-based ATS score (0–100)."""
+    result = calculate_ats_details(job_description, resume_text)
+    return result["score"]
+
+
+def calculate_ats_details(job_description: str, resume_text: str) -> dict:
+    """Return score plus matched/missing skill breakdown."""
+    if not job_description or len(job_description.strip()) < 80:
+        return {
+            "score": 0.0,
+            "matched_skills": [],
+            "missing_skills": [],
+            "jd_too_short": True,
+            "resume_loaded": bool(resume_text and len(resume_text) > 50),
+        }
+
     jd_lower = job_description.lower()
-    resume_lower = resume_text.lower()
+    resume_lower = resume_text.lower() if resume_text else ""
 
-    # Extract words from JD
-    jd_words = set(re.findall(r"\b[a-z][a-z0-9+#.-]{2,}\b", jd_lower))
-    resume_words = set(re.findall(r"\b[a-z][a-z0-9+#.-]{2,}\b", resume_lower))
+    # Skill breakdown
+    skills_in_jd = [s for s in Config.SKILLS if s.lower() in jd_lower]
+    matched = [s for s in skills_in_jd if s.lower() in resume_lower]
+    missing = [s for s in skills_in_jd if s.lower() not in resume_lower]
 
-    # Skill keyword matches
-    skill_matches = sum(1 for s in Config.SKILLS if s.lower() in jd_lower and s.lower() in resume_lower)
-    skill_total = max(1, sum(1 for s in Config.SKILLS if s.lower() in jd_lower))
-    skill_score = (skill_matches / skill_total) * 60
+    skill_total = max(1, len(skills_in_jd))
+    skill_score = (len(matched) / skill_total) * 60
 
     # General keyword overlap
+    jd_words = set(re.findall(r"\b[a-z][a-z0-9+#.-]{2,}\b", jd_lower))
+    resume_words = set(re.findall(r"\b[a-z][a-z0-9+#.-]{2,}\b", resume_lower))
     common = jd_words & resume_words
     overlap_score = min(40, (len(common) / max(1, len(jd_words))) * 100)
 
-    total = round(skill_score + overlap_score, 1)
-    log.info("ATS score calculated", extra={"score": total, "skill_matches": skill_matches})
-    return min(total, 100.0)
+    total = round(min(skill_score + overlap_score, 100.0), 1)
+    log.info("ATS score", extra={"score": total, "matched": len(matched), "missing": len(missing)})
+
+    return {
+        "score": total,
+        "matched_skills": matched,
+        "missing_skills": missing,
+        "skills_in_jd": skills_in_jd,
+        "jd_too_short": False,
+        "resume_loaded": bool(resume_lower and len(resume_lower) > 50),
+    }
 
 
 def optimize_resume(job_description: str, resume_text: str) -> dict:
