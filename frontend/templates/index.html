@@ -24,12 +24,13 @@
 </section>
 
 <section class="controls">
-  <button onclick="triggerSearch()">&#x1F50D; Start Job Search</button>
-  <button onclick="triggerApply()">&#x26A1; Auto Apply</button>
+  <button onclick="triggerSearch()">&#x1F50D; Search Jobs</button>
+  <button onclick="triggerApply()">&#x26A1; Auto Apply (Full Cycle)</button>
   <button onclick="triggerOutreach()">&#x1F4E8; Recruiter Outreach</button>
   <button onclick="generateReport()">&#x1F4CA; Generate Report</button>
-  <span id="status-msg"></span>
 </section>
+<div id="progress-bar" style="display:none;height:4px;background:var(--accent,#58a6ff);border-radius:2px;margin:6px 0;animation:pulse 1.5s ease-in-out infinite"></div>
+<div style="min-height:22px;padding:0 4px"><span id="status-msg" style="font-size:0.85rem"></span></div>
 
 <section class="upload-section">
   <h2>Upload Resume (PDF)</h2>

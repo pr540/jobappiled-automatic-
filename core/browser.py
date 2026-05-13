@@ -1,4 +1,5 @@
 """Shared browser factory — returns an undetected Chrome driver (Windows + Linux CI)."""
+import setuptools  # noqa: F401 — must precede uc; registers distutils shim for Python 3.12+
 import os
 import time
 import random

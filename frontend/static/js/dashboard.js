@@ -1,4 +1,5 @@
 const API = "";
+const PLATFORMS = ["linkedin", "naukri", "indeed"];
 
 const SAMPLE_JD = `We are looking for a DevOps Engineer with 1–3 years of hands-on experience.
 
@@ -19,6 +20,7 @@ Good to have:
 Location: Remote / Hyderabad / Bangalore
 Experience: 1–3 Years`;
 
+// ── stats ──────────────────────────────────────────────────────────────────────
 async function fetchStats() {
   try {
     const res = await fetch(`${API}/api/dashboard/stats`);
@@ -40,7 +42,7 @@ async function fetchRecentJobs() {
     const jobs = await res.json();
     const tbody = document.getElementById("jobs-tbody");
     if (!jobs.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No jobs yet — click "Start Job Search" to begin</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:24px">No jobs yet — click "Auto Apply (Full Cycle)" to begin</td></tr>`;
       return;
     }
     tbody.innerHTML = jobs.map(j => `
@@ -82,25 +84,94 @@ async function markReplied(id) {
   fetchOutreach();
 }
 
+// ── status bar ─────────────────────────────────────────────────────────────────
+let _pollInterval = null;
+
 function setStatus(msg, ok = true) {
   const el = document.getElementById("status-msg");
   el.textContent = msg;
   el.style.color = ok ? "var(--green)" : "var(--red)";
-  setTimeout(() => el.textContent = "", 5000);
+  if (ok) setTimeout(() => { if (!_pollInterval) el.textContent = ""; }, 6000);
 }
 
+function _setButtonsDisabled(disabled) {
+  document.querySelectorAll(".controls button").forEach(b => b.disabled = disabled);
+}
+
+function _startPolling() {
+  if (_pollInterval) return;
+  _setButtonsDisabled(true);
+  _pollInterval = setInterval(_pollTaskStatus, 3000);
+}
+
+function _stopPolling() {
+  if (_pollInterval) { clearInterval(_pollInterval); _pollInterval = null; }
+  _setButtonsDisabled(false);
+}
+
+async function _pollTaskStatus() {
+  try {
+    const res = await fetch(`${API}/api/jobs/status`);
+    const d = await res.json();
+    const bar = document.getElementById("progress-bar");
+
+    if (d.running) {
+      const phase = d.phase === "searching" ? "Searching jobs..." : "Applying to jobs...";
+      let detail = "";
+      if (d.scanned) detail += ` | Scanned: ${d.scanned}`;
+      if (d.saved)   detail += ` | Saved: ${d.saved}`;
+      if (d.applied) detail += ` | Applied: ${d.applied}`;
+      if (d.failed)  detail += ` | Failed: ${d.failed}`;
+      setStatus(`⚙ ${phase}${detail}`, true);
+      bar.style.display = "block";
+      fetchRecentJobs();
+      fetchStats();
+    } else {
+      _stopPolling();
+      bar.style.display = "none";
+      if (d.phase === "done") {
+        const msg = `✓ Done — Scanned: ${d.scanned}  Saved: ${d.saved}  Applied: ${d.applied}  Failed: ${d.failed}`;
+        setStatus(msg, true);
+        fetchRecentJobs();
+        fetchStats();
+      } else if (d.phase && d.phase.startsWith("error")) {
+        setStatus("✗ " + d.phase, false);
+      }
+    }
+  } catch (e) {
+    console.error("Status poll failed", e);
+  }
+}
+
+// ── trigger buttons ────────────────────────────────────────────────────────────
 async function triggerSearch() {
-  setStatus("Job search started in background...");
-  const res = await fetch(`${API}/api/jobs/trigger-search`, { method: "POST" });
-  const d = await res.json();
-  setStatus(d.message || "Started");
+  setStatus("Searching jobs on LinkedIn · Naukri · Indeed...");
+  _startPolling();
+  try {
+    const res = await fetch(`${API}/api/jobs/trigger-search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platforms: PLATFORMS }),
+    });
+    const d = await res.json();
+    if (res.status === 409) { setStatus(d.message, false); _stopPolling(); }
+  } catch (e) { setStatus("Request failed: " + e.message, false); _stopPolling(); }
 }
 
 async function triggerApply() {
-  setStatus("Auto-apply started in background...");
-  const res = await fetch(`${API}/api/jobs/trigger-apply`, { method: "POST" });
-  const d = await res.json();
-  setStatus(d.message || "Started");
+  // "Auto Apply" = full cycle: search new jobs THEN apply
+  setStatus("Starting full cycle: LinkedIn · Naukri · Indeed → Search → Apply...");
+  _startPolling();
+  try {
+    const res = await fetch(`${API}/api/jobs/trigger-full`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platforms: PLATFORMS, limit: 150 }),
+    });
+    const d = await res.json();
+    if (res.status === 409) { setStatus(d.message, false); _stopPolling(); }
+    else setStatus(`⚙ Full cycle started on ${PLATFORMS.join(", ")}...`);
+  } catch (e) { setStatus("Request failed: " + e.message, false); _stopPolling(); }
 }
 
 async function triggerOutreach() {
@@ -116,6 +187,7 @@ async function generateReport() {
   setStatus(d.message || "Report generated");
 }
 
+// ── resume ─────────────────────────────────────────────────────────────────────
 async function uploadResume() {
   const file = document.getElementById("resume-file").files[0];
   if (!file) { setStatus("Select a PDF file first", false); return; }
@@ -124,11 +196,7 @@ async function uploadResume() {
   const res = await fetch(`${API}/api/resume/upload`, { method: "POST", body: form });
   const d = await res.json();
   const el = document.getElementById("upload-result");
-  if (d.error) {
-    el.textContent = "Error: " + d.error;
-    el.style.color = "var(--red)";
-    return;
-  }
+  if (d.error) { el.textContent = "Error: " + d.error; el.style.color = "var(--red)"; return; }
   el.style.color = "var(--green)";
   el.textContent = `Resume uploaded — ${d.skills_found?.length || 0} skills detected`;
   showResumeSkills(d.skills_found || []);
@@ -156,6 +224,7 @@ function showResumeSkills(skills) {
   chips.innerHTML = skills.map(s => `<span class="chip chip-blue">${s}</span>`).join("");
 }
 
+// ── ATS checker ────────────────────────────────────────────────────────────────
 function loadSampleJD() {
   document.getElementById("jd-text").value = SAMPLE_JD;
   document.getElementById("ats-error").textContent = "";
@@ -168,14 +237,8 @@ async function checkATS() {
   errEl.textContent = "";
   resBox.style.display = "none";
 
-  if (!jd) {
-    errEl.textContent = "Please paste a job description first. Use \"Try Sample JD\" to test.";
-    return;
-  }
-  if (jd.length < 80) {
-    errEl.textContent = `Too short (${jd.length} chars). Paste the full job description — at least 3–4 lines.`;
-    return;
-  }
+  if (!jd) { errEl.textContent = 'Please paste a job description first. Use "Try Sample JD" to test.'; return; }
+  if (jd.length < 80) { errEl.textContent = `Too short (${jd.length} chars). Paste the full job description — at least 3–4 lines.`; return; }
 
   const btn = document.querySelector(".ats-controls button");
   btn.textContent = "Checking...";
@@ -188,7 +251,6 @@ async function checkATS() {
       body: JSON.stringify({ job_description: jd }),
     });
     const d = await res.json();
-
     if (!res.ok) {
       errEl.textContent = d.error || "Error checking score.";
       if (d.resume_missing) errEl.textContent += " Upload your resume PDF above first.";
@@ -196,22 +258,17 @@ async function checkATS() {
     }
 
     const score = d.ats_score;
-    const pass = d.pass;
     const color = score >= 75 ? "var(--green)" : score >= 50 ? "#f0883e" : "var(--red)";
-
-    // Score bar
     const bar = document.getElementById("ats-score-bar");
     bar.style.width = score + "%";
     bar.style.background = color;
 
-    // Label
-    const label = document.getElementById("ats-score-label");
-    label.innerHTML = `<strong style="color:${color};font-size:1.5rem">${score}%</strong>
-      &nbsp;—&nbsp;
-      <span style="color:${color}">${pass ? "PASS ✓ You will be shortlisted" : score >= 50 ? "BORDERLINE — optimize resume" : "FAIL ✗ Below threshold"}</span>
-      &nbsp;&nbsp;<small style="color:var(--muted)">Threshold: ${d.threshold}%</small>`;
+    document.getElementById("ats-score-label").innerHTML =
+      `<strong style="color:${color};font-size:1.5rem">${score}%</strong>
+       &nbsp;—&nbsp;
+       <span style="color:${color}">${d.pass ? "PASS ✓ You will be shortlisted" : score >= 50 ? "BORDERLINE — optimize resume" : "FAIL ✗ Below threshold"}</span>
+       &nbsp;&nbsp;<small style="color:var(--muted)">Threshold: ${d.threshold}%</small>`;
 
-    // Matched chips
     const matched = d.matched_skills || [];
     const missing = d.missing_skills || [];
     document.getElementById("matched-chips").innerHTML =
@@ -220,7 +277,6 @@ async function checkATS() {
       missing.length ? missing.map(s => `<span class="chip chip-red">${s}</span>`).join("") : `<span style="color:var(--green);font-size:0.8rem">All skills present!</span>`;
 
     resBox.style.display = "block";
-
   } catch (e) {
     errEl.textContent = "Request failed: " + e.message;
   } finally {
@@ -229,11 +285,22 @@ async function checkATS() {
   }
 }
 
+// ── init ───────────────────────────────────────────────────────────────────────
 function refreshAll() {
   fetchStats();
   fetchRecentJobs();
   fetchOutreach();
 }
 
+// Check if a task was already running when page loaded
+async function checkInitialStatus() {
+  try {
+    const res = await fetch(`${API}/api/jobs/status`);
+    const d = await res.json();
+    if (d.running) { _startPolling(); setStatus(`⚙ Task in progress: ${d.phase}...`); }
+  } catch (e) { /* ignore */ }
+}
+
 refreshAll();
+checkInitialStatus();
 setInterval(refreshAll, 30000);

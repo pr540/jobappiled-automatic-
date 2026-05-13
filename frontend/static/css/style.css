@@ -209,3 +209,5 @@ tr:last-child td { border-bottom: none; }
 .platform-badge.naukri { background: #ff6b35; color: #fff; }
 .platform-badge.indeed { background: #2164f3; color: #fff; }
 .platform-badge.glassdoor { background: #0caa41; color: #fff; }
+
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
