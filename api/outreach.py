@@ -9,13 +9,27 @@ log = get_logger("outreach_api")
 
 @outreach_bp.get("/")
 def list_outreach():
-    records = db.session.query(RecruiterOutreach).order_by(RecruiterOutreach.created_at.desc()).limit(100).all()
-    return jsonify([{
-        "id": r.id, "name": r.name, "company": r.company,
-        "linkedin_url": r.linkedin_url, "connection_sent": r.connection_sent,
-        "message_sent": r.message_sent, "replied": r.replied,
-        "created_at": r.created_at.isoformat() if r.created_at else None,
-    } for r in records])
+    try:
+        records = (
+            db.session.query(RecruiterOutreach)
+            .order_by(RecruiterOutreach.created_at.desc())
+            .limit(100)
+            .all()
+        )
+        return jsonify([{
+            "id": r.id,
+            "name": r.name or "",
+            "company": r.company or "",
+            "linkedin_url": r.linkedin_url or "",
+            "connection_sent": r.connection_sent,
+            "message_sent": r.message_sent,
+            "replied": r.replied,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        } for r in records])
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"outreach list failed: {e}")
+        return jsonify([])
 
 
 @outreach_bp.post("/trigger")
@@ -35,9 +49,14 @@ def trigger_outreach():
 
 @outreach_bp.patch("/<int:rec_id>/replied")
 def mark_replied(rec_id: int):
-    rec = db.session.get(RecruiterOutreach, rec_id)
-    if not rec:
-        return jsonify({"error": "Not found"}), 404
-    rec.replied = True
-    db.session.commit()
-    return jsonify({"id": rec.id, "replied": True})
+    try:
+        rec = db.session.get(RecruiterOutreach, rec_id)
+        if not rec:
+            return jsonify({"error": "Not found"}), 404
+        rec.replied = True
+        db.session.commit()
+        return jsonify({"id": rec.id, "replied": True})
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"mark_replied failed: {e}")
+        return jsonify({"error": str(e)}), 500

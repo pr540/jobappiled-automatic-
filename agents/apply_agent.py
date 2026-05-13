@@ -21,7 +21,13 @@ def _get_platform(name: str):
     module_path, class_name = path.rsplit(".", 1)
     mod = importlib.import_module(module_path)
     instance = getattr(mod, class_name)()
-    instance.login()
+    if not instance.login():
+        log.warning(f"[{name}] login failed — cannot apply")
+        try:
+            instance.close()
+        except Exception:
+            pass
+        return None
     return instance
 
 
@@ -30,15 +36,21 @@ def run_auto_apply(daily_limit: int | None = None) -> dict:
     limit = daily_limit or Config.DAILY_APPLY_TARGET
     results = {"applied": 0, "failed": 0, "skipped": 0}
 
-    pending = (
-        db.session.query(Job)
-        .filter_by(status="pending")
-        .filter(Job.ats_score >= Config.ATS_MIN_SCORE)
-        .order_by(Job.ats_score.desc())
-        .limit(limit)
-        .all()
-    )
-    log.info(f"Auto-apply: {len(pending)} pending jobs")
+    try:
+        pending = (
+            db.session.query(Job)
+            .filter(Job.status == "pending")
+            .filter(Job.ats_score >= Config.ATS_MIN_SCORE)
+            .order_by(Job.ats_score.desc())
+            .limit(limit)
+            .all()
+        )
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"Auto-apply: failed to query pending jobs: {e}")
+        return results
+
+    log.info(f"Auto-apply: {len(pending)} pending jobs queued")
 
     # Group by platform so we only open one browser per platform
     by_platform: dict[str, list] = {}
@@ -57,9 +69,12 @@ def run_auto_apply(daily_limit: int | None = None) -> dict:
 
         if not platform:
             for job in jobs:
-                job.status = "error"
-                job.error_message = f"Platform {pname} could not start"
-                db.session.commit()
+                try:
+                    job.status = "error"
+                    job.error_message = f"Platform {pname} could not start or login"
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
                 results["skipped"] += 1
             continue
 
@@ -82,18 +97,24 @@ def run_auto_apply(daily_limit: int | None = None) -> dict:
                     success = platform.apply_to_job(listing)
                     job.status = "applied" if success else "failed"
                     job.applied_at = datetime.utcnow() if success else None
-                    db.session.commit()
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
                     if success:
                         results["applied"] += 1
                         log.info("Applied", extra={"title": job.title, "platform": pname})
                     else:
                         results["failed"] += 1
                 except Exception as e:
-                    job.status = "error"
-                    job.error_message = str(e)[:200]
-                    db.session.commit()
+                    try:
+                        job.status = "error"
+                        job.error_message = str(e)[:200]
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
                     results["failed"] += 1
-                    log.error(f"Apply error [{pname}]: {e}")
+                    log.error(f"Apply error [{pname}] {job.title}: {e}")
         finally:
             try:
                 platform.close()

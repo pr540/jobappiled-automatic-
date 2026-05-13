@@ -23,7 +23,11 @@ def _get_platform_class(name: str):
 
 
 def _job_url_exists(url: str) -> bool:
-    return db.session.query(Job).filter_by(job_url=url).first() is not None
+    try:
+        return db.session.query(Job).filter(Job.job_url == url).first() is not None
+    except Exception:
+        db.session.rollback()
+        return False
 
 
 def run_job_search(platforms: list[str] | None = None) -> dict:
@@ -52,6 +56,7 @@ def run_job_search(platforms: list[str] | None = None) -> dict:
                     try:
                         jobs = platform.search_jobs(role, location)
                         results["scanned"] += len(jobs)
+
                         for job in jobs:
                             if _job_url_exists(job.job_url):
                                 results["skipped_dup"] += 1
@@ -71,26 +76,33 @@ def run_job_search(platforms: list[str] | None = None) -> dict:
                                 results["skipped_ats"] += 1
                                 continue
 
-                            record = Job(
-                                platform=job.platform,
-                                title=job.title,
-                                company=job.company,
-                                location=job.location,
-                                job_url=job.job_url,
-                                experience_required=job.experience_required,
-                                job_description=job.job_description,
-                                ats_score=score,
-                                status="pending",
-                            )
-                            db.session.add(record)
-                            db.session.commit()
-                            results["saved"] += 1
+                            try:
+                                record = Job(
+                                    platform=job.platform,
+                                    title=job.title,
+                                    company=job.company,
+                                    location=job.location,
+                                    job_url=job.job_url,
+                                    experience_required=job.experience_required,
+                                    job_description=job.job_description,
+                                    ats_score=score,
+                                    status="pending",
+                                )
+                                db.session.add(record)
+                                db.session.commit()
+                                results["saved"] += 1
+                            except Exception as e:
+                                db.session.rollback()
+                                log.error(f"DB save failed [{pname}] {job.title}: {e}")
+                                results["errors"] += 1
 
                     except Exception as e:
+                        db.session.rollback()
                         log.error(f"Search error [{pname}] {role}@{location}: {e}")
                         results["errors"] += 1
 
         except Exception as e:
+            db.session.rollback()
             log.error(f"Platform error [{pname}]: {e}")
             results["errors"] += 1
         finally:
