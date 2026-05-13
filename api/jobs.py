@@ -12,27 +12,28 @@ def list_jobs():
     status = request.args.get("status")
     platform = request.args.get("platform")
 
-    q = db.session.query(Job)
-    if status:
-        q = q.filter_by(status=status)
-    if platform:
-        q = q.filter_by(platform=platform)
-
-    total = q.count()
-    jobs = q.order_by(Job.ats_score.desc()).offset((page - 1) * per_page).limit(per_page).all()
-
-    return jsonify({
-        "total": total,
-        "page": page,
-        "jobs": [{
-            "id": j.id, "platform": j.platform, "title": j.title,
-            "company": j.company, "location": j.location,
-            "ats_score": j.ats_score, "status": j.status,
-            "job_url": j.job_url, "experience_required": j.experience_required,
-            "applied_at": j.applied_at.isoformat() if j.applied_at else None,
-            "created_at": j.created_at.isoformat() if j.created_at else None,
-        } for j in jobs],
-    })
+    try:
+        q = db.session.query(Job)
+        if status:
+            q = q.filter_by(status=status)
+        if platform:
+            q = q.filter_by(platform=platform)
+        total = q.count()
+        jobs = q.order_by(Job.ats_score.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        return jsonify({
+            "total": total,
+            "page": page,
+            "jobs": [{
+                "id": j.id, "platform": j.platform, "title": j.title,
+                "company": j.company, "location": j.location,
+                "ats_score": j.ats_score, "status": j.status,
+                "job_url": j.job_url, "experience_required": j.experience_required,
+                "applied_at": j.applied_at.isoformat() if j.applied_at else None,
+                "created_at": j.created_at.isoformat() if j.created_at else None,
+            } for j in jobs],
+        })
+    except Exception as e:
+        return jsonify({"total": 0, "page": page, "jobs": [], "error": str(e)}), 200
 
 
 @jobs_bp.post("/trigger-search")
@@ -67,20 +68,28 @@ def trigger_apply():
 
 @jobs_bp.patch("/<int:job_id>/status")
 def update_status(job_id: int):
-    job = db.session.get(Job, job_id)
-    if not job:
-        return jsonify({"error": "Not found"}), 404
-    data = request.get_json()
-    job.status = data.get("status", job.status)
-    db.session.commit()
-    return jsonify({"id": job.id, "status": job.status})
+    try:
+        job = db.session.get(Job, job_id)
+        if not job:
+            return jsonify({"error": "Not found"}), 404
+        data = request.get_json() or {}
+        job.status = data.get("status", job.status)
+        db.session.commit()
+        return jsonify({"id": job.id, "status": job.status})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 
 @jobs_bp.delete("/<int:job_id>")
 def delete_job(job_id: int):
-    job = db.session.get(Job, job_id)
-    if not job:
-        return jsonify({"error": "Not found"}), 404
-    db.session.delete(job)
-    db.session.commit()
-    return jsonify({"deleted": job_id})
+    try:
+        job = db.session.get(Job, job_id)
+        if not job:
+            return jsonify({"error": "Not found"}), 404
+        db.session.delete(job)
+        db.session.commit()
+        return jsonify({"deleted": job_id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

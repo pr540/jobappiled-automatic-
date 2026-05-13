@@ -1,13 +1,25 @@
 """Extract text, skills, and sections from a PDF resume."""
 import re
-import pdfplumber
+import os
 from core.config import Config
 from core.logger import get_logger
+
+try:
+    import pdfplumber
+    _PDF_OK = True
+except ImportError:
+    _PDF_OK = False
 
 log = get_logger("resume_parser")
 
 
 def extract_text(pdf_path: str) -> str:
+    if not _PDF_OK:
+        log.warning("pdfplumber not available — cannot parse PDF")
+        return ""
+    if not os.path.exists(pdf_path):
+        log.warning(f"Resume PDF not found: {pdf_path}")
+        return ""
     text = ""
     try:
         with pdfplumber.open(pdf_path) as pdf:
