@@ -1,0 +1,154 @@
+====================================================================
+  JOBBOT — DAILY AUTOMATION STEPS
+  Candidate : Sanagapalli Sri Ram Praneeth
+  Email     : praneethssr.2002@gmail.com
+  Goal      : 50-200 DevOps job applications per day (AUTO)
+====================================================================
+
+WHAT HAPPENS AUTOMATICALLY EVERY DAY AT 9:00 AM
+--------------------------------------------------------------------
+STEP 1  CLEANUP     Kill stale Chrome / chromedriver processes
+STEP 2  SEARCH      Search DevOps jobs on LinkedIn, Naukri, Indeed, Glassdoor
+                      Roles    : DevOps Engineer, AWS Cloud Engineer,
+                                 Kubernetes Engineer, SRE,
+                                 Infrastructure Engineer, Platform Engineer
+                      Locations: Remote, Hyderabad, Bangalore, Pune, Chennai
+                      Filter   : Experience 1-3 years | Last 7 days
+STEP 3  ATS SCORE   Score each job vs your resume (data\resume.pdf)
+                      Save only jobs with ATS score >= 75%
+STEP 4  APPLY       Auto-apply to pending jobs (highest ATS first)
+                      LinkedIn  : Easy Apply multi-step form
+                      Naukri    : Direct apply button
+                      Indeed    : Indeed Easy Apply
+                      Glassdoor : Glassdoor apply
+                      Limit     : 150 jobs per day
+                      On crash  : Browser auto-restarts and retries
+STEP 5  RETRY       Reset any error/failed jobs → retry them
+STEP 6  OUTREACH    Send LinkedIn connection requests to recruiters
+STEP 7  REPORT      Save daily stats to dashboard database
+STEP 8  DONE        View results at http://localhost:5000
+
+====================================================================
+HOW TO RUN (CHOOSE ONE)
+====================================================================
+
+--- OPTION 1: FULLY AUTOMATIC (recommended) ---
+Run setup_autostart.bat as Administrator ONE TIME.
+After that, every morning at 9:00 AM it runs automatically.
+Nothing else needed. Just check dashboard at http://localhost:5000
+
+--- OPTION 2: ONE-CLICK MANUAL RUN ---
+Double-click: run_now.bat
+Does everything: Search -> Score -> Apply -> Outreach -> Report
+
+--- OPTION 3: ONLY RETRY FAILED JOBS ---
+Double-click: retry_apply.bat
+Resets error jobs to pending and re-applies
+
+--- OPTION 4: COMMAND LINE ---
+.venv\Scripts\python run_daily.py
+  --limit 200          Max 200 applications
+  --search-only        Only search, don't apply
+  --apply-only         Only apply (no search)
+  --retry-errors       Reset failed jobs then retry
+  --platforms linkedin naukri    Specific platforms only
+  --headless           Chrome runs in background (invisible)
+
+====================================================================
+FIRST-TIME SETUP (DO ONCE ONLY)
+====================================================================
+
+1. Install everything:
+   Double-click install.bat
+
+2. Put your resume at:
+   data\resume.pdf
+
+3. Login to all platforms with Google:
+   .venv\Scripts\python setup_login.py
+   (A Chrome window opens — login with praneethssr.2002@gmail.com)
+
+4. Schedule daily automation:
+   Right-click setup_autostart.bat → Run as Administrator
+
+5. Start dashboard:
+   Double-click start.bat
+   Open browser → http://localhost:5000
+
+====================================================================
+FILES — WHAT EACH BAT DOES
+====================================================================
+
+install.bat           First-time install (run once)
+start.bat             Start dashboard server (http://localhost:5000)
+run_now.bat           Full daily run right now (manual)
+retry_apply.bat       Retry only failed/error jobs
+setup_autostart.bat   Add to Windows startup + schedule 9 AM daily
+daily_runner.bat      Called by Task Scheduler every morning at 9 AM
+setup_login.py        Login to all platforms with Google (run once)
+
+====================================================================
+DASHBOARD — http://localhost:5000
+====================================================================
+
+Shows:
+  - Jobs scanned today
+  - Jobs applied today
+  - Average ATS score
+  - Platform breakdown
+  - Full applied jobs list
+
+====================================================================
+TROUBLESHOOTING
+====================================================================
+
+Problem: Chrome crash / "invalid session id"
+  Fix: Browser now auto-restarts mid-apply (fixed in code)
+       OR run: retry_apply.bat
+
+Problem: 0 jobs applied
+  Fix 1: retry_apply.bat (retry failed jobs)
+  Fix 2: .venv\Scripts\python setup_login.py (refresh logins)
+
+Problem: Dashboard not loading
+  Fix: Double-click start.bat
+       OR run setup_autostart.bat as Administrator
+
+Problem: ATS score 0%
+  Fix: Check data\resume.pdf exists
+       JD must be at least 80 characters
+
+Problem: Task Scheduler not running
+  Fix: Run setup_autostart.bat as Administrator
+       Check Windows Task Scheduler → JobBotDailyApply
+
+====================================================================
+CONFIGURATION (.env file)
+====================================================================
+
+ATS_MIN_SCORE=75        Only save jobs with ATS >= 75%
+MAX_EXPERIENCE_YEARS=3  Filter out senior roles
+DAILY_APPLY_TARGET=150  Max applications per day
+HEADLESS=false          Show Chrome window (set true for silent)
+MORNING_SCAN_TIME=08:00 Daily scan time (Task Scheduler uses 09:00)
+
+====================================================================
+SKILLS TRACKED FOR ATS SCORING
+====================================================================
+
+AWS | Terraform | Docker | Kubernetes | Jenkins | GitHub Actions
+Linux | Bash | Python | CI/CD | CloudWatch | Grafana | Prometheus
+IAM | EKS | EC2 | S3 | VPC | Route53 | ELB | Auto Scaling | WAF
+
+====================================================================
+LOG FILES
+====================================================================
+
+logs\daily_run.log    Full output of every daily run
+logs\jobbot.log       Application errors
+
+====================================================================
+TODAY'S STATUS — check after each run:
+  - http://localhost:5000
+  - logs\daily_run.log
+====================================================================

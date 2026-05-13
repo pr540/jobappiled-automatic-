@@ -27,7 +27,7 @@ def trigger_outreach():
     def _run():
         with app.app_context():
             from agents.recruiter_agent import run_recruiter_outreach
-            run_recruiter_outreach(app=app)
+            run_recruiter_outreach()
 
     Thread(target=_run, daemon=True).start()
     return jsonify({"message": "Recruiter outreach started"})

@@ -44,7 +44,7 @@ def trigger_search():
     def _run():
         with app.app_context():
             from agents.job_search_agent import run_job_search
-            run_job_search(app=app)
+            run_job_search()
 
     Thread(target=_run, daemon=True).start()
     return jsonify({"message": "Job search started in background"})
@@ -59,7 +59,7 @@ def trigger_apply():
     def _run():
         with app.app_context():
             from agents.apply_agent import run_auto_apply
-            run_auto_apply(app=app)
+            run_auto_apply()
 
     Thread(target=_run, daemon=True).start()
     return jsonify({"message": "Auto-apply started in background"})

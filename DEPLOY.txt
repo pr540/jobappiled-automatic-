@@ -1,0 +1,181 @@
+====================================================================
+  JOBBOT — VERCEL + GITHUB ACTIONS DEPLOY GUIDE
+  Dashboard on Vercel (public URL) + Daily pipeline runs automatically
+====================================================================
+
+ARCHITECTURE
+--------------------------------------------------------------------
+  GitHub Actions  → runs Selenium daily at 9:00 AM IST (free)
+       ↓ writes results to
+  Supabase DB     → free PostgreSQL cloud database
+       ↓ dashboard reads from
+  Vercel          → hosts Flask dashboard (public URL, free)
+
+====================================================================
+STEP 1 — CREATE FREE SUPABASE DATABASE (5 minutes)
+====================================================================
+
+1. Go to: https://supabase.com
+2. Click "Start your project" → Sign up free
+3. Create new project:
+     Name     : jobbot
+     Password : (save this — you need it for DATABASE_URL)
+     Region   : South Asia (Mumbai) or Singapore
+4. Wait ~2 minutes for project to provision
+5. Go to: Settings → Database → Connection String → URI
+6. Copy the URI — it looks like:
+     postgresql://postgres:PASSWORD@db.XXXXX.supabase.co:5432/postgres
+7. Save this as DATABASE_URL — you'll use it in Steps 2 and 3
+
+====================================================================
+STEP 2 — PUSH CODE TO GITHUB (3 minutes)
+====================================================================
+
+Run these commands in your project folder:
+
+  git init
+  git add .
+  git commit -m "JobBot initial commit"
+  git branch -M main
+
+Create a new repo at https://github.com/new  (name: jobbot)
+Then run:
+  git remote add origin https://github.com/YOUR_USERNAME/jobbot.git
+  git push -u origin main
+
+====================================================================
+STEP 3 — ADD GITHUB SECRETS (3 minutes)
+====================================================================
+
+Go to: GitHub repo → Settings → Secrets and variables → Actions
+Click "New repository secret" for each:
+
+  SECRET NAME          VALUE
+  ─────────────────────────────────────────────────────────────────
+  DATABASE_URL         postgresql://postgres:PASS@db.XXX.supabase.co:5432/postgres
+  FLASK_SECRET_KEY     any-random-string-here-abc123xyz
+  OPENAI_API_KEY       sk-... (from platform.openai.com)
+  LINKEDIN_PASSWORD    your LinkedIn account password
+  NAUKRI_PASSWORD      your Naukri account password
+  INDEED_PASSWORD      your Indeed account password
+  GLASSDOOR_PASSWORD   your Glassdoor account password
+  RESUME_BASE64        (see below — base64 encoded resume PDF)
+
+To encode your resume as base64 (run in project folder):
+  Windows PowerShell:
+    [Convert]::ToBase64String([IO.File]::ReadAllBytes("data\resume.pdf")) | clip
+    (This copies the base64 string to clipboard — paste as RESUME_BASE64)
+
+  OR in Git Bash:
+    base64 -w 0 data/resume.pdf | clip
+
+====================================================================
+STEP 4 — DEPLOY DASHBOARD TO VERCEL (5 minutes)
+====================================================================
+
+1. Go to: https://vercel.com → Sign up with GitHub
+2. Click "Add New Project"
+3. Import your GitHub repo (jobbot)
+4. Vercel auto-detects Python — click "Deploy"
+5. After deploy, go to: Project → Settings → Environment Variables
+6. Add these environment variables:
+
+  VARIABLE             VALUE
+  ─────────────────────────────────────────────────────────────────
+  DATABASE_URL         postgresql://postgres:PASS@db.XXX.supabase.co:5432/postgres
+  FLASK_SECRET_KEY     same random string as GitHub secret
+  HEADLESS             true
+
+7. Go to: Deployments → Redeploy (to apply env vars)
+8. Your dashboard is now live at:
+     https://jobbot-YOUR_USERNAME.vercel.app
+
+====================================================================
+STEP 5 — TEST THE PIPELINE (2 minutes)
+====================================================================
+
+1. Go to GitHub repo → Actions tab
+2. Click "JobBot Daily Apply Pipeline"
+3. Click "Run workflow" → Run workflow
+4. Watch the logs — pipeline should:
+   - Install Chrome on Ubuntu runner
+   - Login to LinkedIn, Naukri, Indeed, Glassdoor
+   - Search DevOps jobs
+   - Apply to matching jobs (ATS >= 75%)
+   - Save results to Supabase DB
+5. Open your Vercel URL → see results on dashboard
+
+====================================================================
+AUTOMATIC DAILY SCHEDULE
+====================================================================
+
+GitHub Actions runs automatically at:
+  3:30 AM UTC  =  9:00 AM IST  every day
+
+No action needed — just check the dashboard each morning.
+GitHub → Actions → shows each run with logs.
+
+====================================================================
+MONITORING
+====================================================================
+
+  Vercel Dashboard  : https://jobbot-YOUR_USERNAME.vercel.app
+  GitHub Actions    : GitHub → Actions → daily_pipeline.yml
+  Run Logs          : GitHub → Actions → (click any run) → Artifacts
+  Supabase DB       : supabase.com → project → Table Editor → jobs
+
+====================================================================
+TROUBLESHOOTING
+====================================================================
+
+Problem: GitHub Actions fails at Chrome install
+  Fix: The workflow installs Chrome automatically — no action needed
+
+Problem: Login fails (LinkedIn/Naukri)
+  Fix: Check LINKEDIN_PASSWORD / NAUKRI_PASSWORD secrets are correct
+       LinkedIn may require 2FA — disable 2FA or use app password
+
+Problem: DATABASE_URL error in Vercel
+  Fix: Make sure DATABASE_URL is set in Vercel Environment Variables
+       Format must be: postgresql://... (not sqlite:///)
+
+Problem: 0 jobs applied in pipeline
+  Fix: Check logs in GitHub → Actions → Artifacts → daily_run.log
+       Most common: wrong password in secrets
+
+Problem: Vercel shows "Internal Server Error"
+  Fix: Check Vercel → Functions → Logs for the error
+       Usually missing environment variable
+
+====================================================================
+LOCAL vs CLOUD COMPARISON
+====================================================================
+
+  Feature           Local (Windows)      Vercel + GitHub Actions
+  ──────────────────────────────────────────────────────────────
+  Dashboard         localhost:5000        https://your.vercel.app
+  Daily pipeline    Task Scheduler 9AM   GitHub Actions 9AM IST
+  Database          SQLite (local)       Supabase PostgreSQL
+  Cost              Free                 Free (within limits)
+  Browser login     Google OAuth         Email + Password
+  Session saved     Yes (profiles/)      No (fresh each run)
+
+====================================================================
+FREE TIER LIMITS (all free)
+====================================================================
+
+  Supabase  : 500MB DB, 50MB file storage
+  Vercel    : 100GB bandwidth, unlimited deployments
+  GitHub    : 2000 minutes/month Actions (pipeline uses ~60min/day)
+              60 min/day × 30 days = 1800 min/month ✓ within limit
+
+====================================================================
+FILES CREATED FOR DEPLOYMENT
+====================================================================
+
+  vercel.json              Vercel deployment configuration
+  requirements-vercel.txt  Vercel Python packages (no Selenium)
+  .github/workflows/
+    daily_pipeline.yml     GitHub Actions daily cron job
+
+====================================================================

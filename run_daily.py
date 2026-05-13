@@ -138,7 +138,7 @@ def run(app):
             _run_apply(stats, app)
             kill_stale_chrome()
 
-        _run_recruiter_outreach(app)
+        _run_recruiter_outreach()
         _save_report(stats)
 
     elapsed = (datetime.now() - start_time).seconds
@@ -335,12 +335,12 @@ def _run_apply(stats: dict, app):
 # ──────────────────────────────────────────────────
 # Recruiter outreach
 # ──────────────────────────────────────────────────
-def _run_recruiter_outreach(app):
+def _run_recruiter_outreach():
     print("\n[3/3] RECRUITER OUTREACH")
     print("-" * 40)
     try:
         from agents.recruiter_agent import run_recruiter_outreach
-        result = run_recruiter_outreach(app=app)
+        result = run_recruiter_outreach()
         print(f"  Contacted: {result.get('contacted',0)}  Failed: {result.get('failed',0)}  Skipped: {result.get('skipped',0)}")
     except Exception as e:
         print(f"  Outreach error: {e}")
