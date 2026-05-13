@@ -16,22 +16,30 @@ def create_app() -> Flask:
     app = Flask(__name__, static_folder="frontend/static", template_folder="frontend/templates")
     app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
 
-    # Database — auto-fix Supabase/Heroku postgres:// → postgresql://
-    db_url = os.getenv("DATABASE_URL", "sqlite:///jobbot.db")
+    # Database — Vercel writes only to /tmp; local uses sqlite in project dir
+    db_url = os.getenv("DATABASE_URL", "")
+    if not db_url:
+        if os.getenv("VERCEL"):
+            db_url = "sqlite:////tmp/jobbot.db"
+        else:
+            db_url = "sqlite:///jobbot.db"
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_pre_ping": True,       # reconnect dropped DB connections
-        "pool_recycle": 300,         # recycle connections every 5 min
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
     }
 
     CORS(app)
     db.init_app(app)
 
     with app.app_context():
-        init_db()
+        try:
+            init_db()
+        except Exception as e:
+            log.warning(f"DB init skipped: {e}")
 
     # Register blueprints — each wrapped so one bad import won't kill the app
     _register_blueprints(app)
