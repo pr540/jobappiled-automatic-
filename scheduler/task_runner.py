@@ -1,15 +1,24 @@
 """APScheduler-based daily task runner."""
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import SchedulerAlreadyRunningError
 from apscheduler.triggers.cron import CronTrigger
 from core.config import Config
 from core.logger import get_logger
 
 log = get_logger("scheduler")
 
+_DEFAULT_MORNING = (8, 0)
+_DEFAULT_REPORT = (20, 0)
 
-def _parse_time(t: str) -> tuple[int, int]:
-    h, m = t.split(":")
-    return int(h), int(m)
+
+def _parse_time(t: str, default: tuple[int, int]) -> tuple[int, int]:
+    """Parse 'HH:MM' safely — returns default on any error."""
+    try:
+        parts = t.strip().split(":")
+        return int(parts[0]), int(parts[1])
+    except Exception:
+        log.warning(f"Invalid time format '{t}' — using {default[0]:02d}:{default[1]:02d}")
+        return default
 
 
 def _add_minutes(h: int, m: int, delta: int) -> tuple[int, int]:
@@ -21,10 +30,9 @@ def _add_minutes(h: int, m: int, delta: int) -> tuple[int, int]:
 def start_scheduler(app):
     scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 
-    morning_h, morning_m = _parse_time(Config.MORNING_SCAN_TIME)
-    report_h, report_m = _parse_time(Config.REPORT_TIME)
+    morning_h, morning_m = _parse_time(Config.MORNING_SCAN_TIME, _DEFAULT_MORNING)
+    report_h, report_m = _parse_time(Config.REPORT_TIME, _DEFAULT_REPORT)
 
-    # Derived times — no arithmetic overflow
     apply_h, apply_m = _add_minutes(morning_h, morning_m, 30)
     outreach_h, outreach_m = _add_minutes(morning_h, morning_m, 60)
 
@@ -64,16 +72,20 @@ def start_scheduler(app):
             except Exception as e:
                 log.error(f"Scheduler: report failed: {e}")
 
-    scheduler.add_job(morning_scan, CronTrigger(hour=morning_h, minute=morning_m), id="morning_scan")
-    scheduler.add_job(auto_apply, CronTrigger(hour=apply_h, minute=apply_m), id="auto_apply")
-    scheduler.add_job(recruiter_outreach, CronTrigger(hour=outreach_h, minute=outreach_m), id="recruiter_outreach")
-    scheduler.add_job(daily_report, CronTrigger(hour=report_h, minute=report_m), id="daily_report")
+    scheduler.add_job(morning_scan, CronTrigger(hour=morning_h, minute=morning_m), id="morning_scan", replace_existing=True)
+    scheduler.add_job(auto_apply, CronTrigger(hour=apply_h, minute=apply_m), id="auto_apply", replace_existing=True)
+    scheduler.add_job(recruiter_outreach, CronTrigger(hour=outreach_h, minute=outreach_m), id="recruiter_outreach", replace_existing=True)
+    scheduler.add_job(daily_report, CronTrigger(hour=report_h, minute=report_m), id="daily_report", replace_existing=True)
 
-    scheduler.start()
-    log.info("Scheduler started", extra={
-        "morning_scan": f"{morning_h:02d}:{morning_m:02d}",
-        "auto_apply": f"{apply_h:02d}:{apply_m:02d}",
-        "recruiter_outreach": f"{outreach_h:02d}:{outreach_m:02d}",
-        "daily_report": f"{report_h:02d}:{report_m:02d}",
-    })
+    try:
+        scheduler.start()
+        log.info("Scheduler started", extra={
+            "morning_scan": f"{morning_h:02d}:{morning_m:02d}",
+            "auto_apply": f"{apply_h:02d}:{apply_m:02d}",
+            "recruiter_outreach": f"{outreach_h:02d}:{outreach_m:02d}",
+            "daily_report": f"{report_h:02d}:{report_m:02d}",
+        })
+    except SchedulerAlreadyRunningError:
+        log.warning("Scheduler already running — skipped duplicate start")
+
     return scheduler

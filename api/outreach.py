@@ -1,5 +1,6 @@
 """Recruiter outreach API."""
-from flask import Blueprint, jsonify, request
+import os
+from flask import Blueprint, jsonify
 from core.database import db, RecruiterOutreach
 from core.logger import get_logger
 
@@ -34,17 +35,27 @@ def list_outreach():
 
 @outreach_bp.post("/trigger")
 def trigger_outreach():
+    # Vercel serverless cannot run background threads — only works locally
+    if os.getenv("VERCEL"):
+        return jsonify({
+            "message": "Recruiter outreach runs via GitHub Actions daily pipeline on Vercel. "
+                       "Run locally with: python run_daily.py"
+        })
+
     from threading import Thread
     from flask import current_app
     app = current_app._get_current_object()
 
     def _run():
         with app.app_context():
-            from agents.recruiter_agent import run_recruiter_outreach
-            run_recruiter_outreach()
+            try:
+                from agents.recruiter_agent import run_recruiter_outreach
+                run_recruiter_outreach()
+            except Exception as e:
+                log.error(f"recruiter outreach thread failed: {e}")
 
     Thread(target=_run, daemon=True).start()
-    return jsonify({"message": "Recruiter outreach started"})
+    return jsonify({"message": "Recruiter outreach started in background"})
 
 
 @outreach_bp.patch("/<int:rec_id>/replied")
