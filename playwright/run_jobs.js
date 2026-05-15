@@ -114,8 +114,8 @@ async function main() {
 
   // ── Glassdoor ────────────────────────────────────────────────
   const remaining = target - results.total_applied;
-  const gdRun = Math.max(gdTarget, remaining > 0 ? remaining : 0);
-  if (gdRun > 0) {
+  if (remaining > 0) {
+    const gdRun = Math.max(gdTarget, remaining);
     console.log(`\n[3/3] Glassdoor (target: ${gdRun})`);
     console.log('─'.repeat(52));
     try {
@@ -124,6 +124,8 @@ async function main() {
     } catch (e) {
       console.error(`[Glassdoor] Fatal: ${e.message}`);
     }
+  } else {
+    console.log('\n[3/3] Glassdoor — skipped (target already reached)');
   }
 
   printSummary(results);
