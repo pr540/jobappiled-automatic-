@@ -16,3 +16,6 @@ build/
 Thumbs.db
 check_db.py
 .venv/
+playwright/node_modules/
+playwright/auth/
+playwright/package-lock.json
