@@ -6,6 +6,13 @@ const config = require('../config');
 const DELAY = (min, max) => new Promise(r => setTimeout(r, min + Math.random() * (max - min)));
 const BASE = 'https://www.naukri.com';
 
+// Extract minimum years from strings like "9-14 Yrs", "1-3 Yrs", "2 Years"
+function parseExpMin(expStr) {
+  if (!expStr) return 0;
+  const m = expStr.match(/(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+
 class Naukri {
   constructor() {
     this.authFile = path.join(config.authDir, 'naukri_state.json');
@@ -51,7 +58,7 @@ class Naukri {
   async searchJobs(role, location) {
     const roleSlug = role.toLowerCase().replace(/\s+/g, '-');
     const locSlug = location.toLowerCase().replace(/\s+/g, '-');
-    const url = `${BASE}/${roleSlug}-jobs-in-${locSlug}?experience=1,3&jobAge=7&jobtype=1`;
+    const url = `${BASE}/${roleSlug}-jobs-in-${locSlug}?experience=0,${config.maxExpYears}&jobAge=7&jobtype=1`;
 
     try {
       await this.page.goto(url, { timeout: 30000, waitUntil: 'domcontentloaded' });
@@ -232,6 +239,13 @@ class Naukri {
 
           const exp = job.experience || 'N/A';
           result.experience_counts[exp] = (result.experience_counts[exp] || 0) + 1;
+
+          // Skip jobs requiring more experience than user has
+          if (parseExpMin(exp) > config.maxExpYears) {
+            console.log(`  ↳ [${exp}] ${job.title} @ ${job.company} ... skip (over-experienced)`);
+            result.skipped++;
+            continue;
+          }
 
           process.stdout.write(`  ↳ [${exp}] ${job.title} @ ${job.company} ... `);
           const ok = await this.applyToJob(job);

@@ -5,6 +5,12 @@ const config = require('../config');
 
 const DELAY = (min, max) => new Promise(r => setTimeout(r, min + Math.random() * (max - min)));
 
+function parseExpMin(expStr) {
+  if (!expStr) return 0;
+  const m = expStr.match(/(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+
 class LinkedIn {
   constructor() {
     this.authFile = path.join(config.authDir, 'linkedin_state.json');
@@ -244,9 +250,15 @@ class LinkedIn {
         for (const job of jobs) {
           if (result.applied >= target) break outer;
 
-          // Track experience count
           const exp = job.experience || 'N/A';
           result.experience_counts[exp] = (result.experience_counts[exp] || 0) + 1;
+
+          // Skip jobs requiring more experience than user has
+          if (parseExpMin(exp) > config.maxExpYears) {
+            console.log(`  ↳ [${exp}] ${job.title} @ ${job.company} ... skip (over-experienced)`);
+            result.skipped++;
+            continue;
+          }
 
           process.stdout.write(`  ↳ [${exp}] ${job.title} @ ${job.company} ... `);
           const ok = await this.applyToJob(job);
