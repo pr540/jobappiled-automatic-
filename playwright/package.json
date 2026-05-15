@@ -1,0 +1,16 @@
+{
+  "name": "jobbot-playwright",
+  "version": "1.0.0",
+  "description": "Playwright job application automation - LinkedIn, Naukri, Glassdoor",
+  "main": "run_jobs.js",
+  "scripts": {
+    "setup-auth": "node auth_setup.js",
+    "run": "node run_jobs.js",
+    "install-browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.13"
+  }
+}
